@@ -7,6 +7,9 @@ import os
 import base64
 from cryptography.fernet import Fernet
 from dotenv import load_dotenv
+import signal
+import sys
+import asyncio
 
 # Load the .env file in the python root dir. This should contain the password secret key
 load_dotenv()
@@ -283,6 +286,19 @@ def list_folders() -> list:
     except Exception as e:
         return [f"Error listing folders: {str(e)}"]
 
+# Signal handler for graceful shutdown
+def handle_termination(signum, frame):
+    print(f"Received termination signal ({signum}). Shutting down cleanly...")
+    try:
+        loop = asyncio.get_event_loop()
+        loop.stop()
+    except RuntimeError:
+        pass
+    sys.exit(0)
+
+# Register signal handlers
+signal.signal(signal.SIGTERM, handle_termination)
+signal.signal(signal.SIGINT, handle_termination)
 
 # Run the MCP Server
 def main():

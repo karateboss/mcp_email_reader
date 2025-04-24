@@ -3,7 +3,7 @@ name = "mcp_email_reader"
 version = "0.1.0"
 description = "An MCP enabled email reader"
 authors = [
-  { name = "David Poole", email = "david.poole@safeswisscloud.ch" }
+  { name = "karateboss", email = "david.poole@techop.ch" }
 ]
 readme = "README.md"
 requires-python = ">=3.8"

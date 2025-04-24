@@ -41,7 +41,7 @@ Add the following to your `claude_desktop_config.json`:
 ```json
 {
     "mcpServers": {
-        "mcp_pdf_reader": {
+        "mcp_email_reader": {
             "command": "uvx",
             "args": [
                 "--from",

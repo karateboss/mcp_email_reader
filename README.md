@@ -61,7 +61,7 @@ Note: Clearly, the secret key can be used to decrypt the encrypted password and 
 
 ## Attribution
 
-This software package implements the ability to read emails into a MCP enabled framework and is developed by [Safe Swiss Cloud](https://safeswisscloud.com). 
+This software package implements the ability to read emails into a MCP enabled framework and is developed by karateboss. 
 
 
 ## Contributing

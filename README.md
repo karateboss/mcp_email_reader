@@ -41,12 +41,12 @@ Add the following to your `claude_desktop_config.json`:
 ```json
 {
     "mcpServers": {
-        "mcp-pdf-reader": {
+        "mcp_pdf_reader": {
             "command": "uvx",
             "args": [
                 "--from",
-                "git+https://github.com/Safe-Swiss-Cloud-AG/mcp_email@main",
-                "mcp_email"
+                "git+https://github.com/karateboss/mcp_email_reader@main",
+                "mcp_email_reader"
             ],
         "env": {
             "IMAP_SERVER": "<email server>",

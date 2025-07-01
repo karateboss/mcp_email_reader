@@ -10,6 +10,11 @@ from dotenv import load_dotenv
 import signal
 import sys
 import asyncio
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email import encoders
 
 # Load the .env file in the python root dir. This should contain the password secret key
 load_dotenv()
@@ -19,6 +24,8 @@ mcp = FastMCP("Email MCP Server")
 
 # Email Server Configuration
 IMAP_SERVER = os.getenv("IMAP_SERVER")
+SMTP_SERVER = os.getenv("SMTP_SERVER")  # Add SMTP server config
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))  # Default to 587 for TLS
 EMAIL_ACCOUNT = os.getenv("EMAIL_ACCOUNT")
 #encoded_pw = os.getenv("EMAIL_PASSWORD")
 #EMAIL_PASSWORD = base64.b64decode(encoded_pw).decode()  # decode base64 → bytes → str
@@ -37,6 +44,15 @@ def connect_to_email():
     except Exception as e:
         return f"Error connecting to email server: {str(e)}"
 
+def connect_to_smtp():
+    """Connects to the SMTP email server."""
+    try:
+        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+        server.starttls()  # Enable TLS encryption
+        server.login(EMAIL_ACCOUNT, EMAIL_PASSWORD)
+        return server
+    except Exception as e:
+        return f"Error connecting to SMTP server: {str(e)}"
 
 def decode_mime_words(s):
     """Helper to decode MIME-encoded words in headers"""
@@ -94,6 +110,86 @@ def get_attachment_names(msg):
             if filename:
                 attachments.append(decode_mime_words(filename))
     return attachments
+
+@mcp.tool()
+def send_email(
+    to_email: str,
+    subject: str,
+    body: str,
+    html_body: str = None,
+    cc_email: str = None,
+    bcc_email: str = None,
+    attachment_paths: list = None
+) -> str:
+    """
+    Sends an email with optional HTML content and attachments.
+
+    :param to_email: Recipient email address (comma-separated for multiple).
+    :param subject: Email subject line.
+    :param body: Plain text email body.
+    :param html_body: Optional HTML email body.
+    :param cc_email: Optional CC recipients (comma-separated).
+    :param bcc_email: Optional BCC recipients (comma-separated).
+    :param attachment_paths: Optional list of file paths to attach.
+    :return: Success message or error description.
+    """
+    try:
+        server = connect_to_smtp()
+        if isinstance(server, str):
+            return server
+
+        # Create message
+        msg = MIMEMultipart('alternative')
+        msg['From'] = EMAIL_ACCOUNT
+        msg['To'] = to_email
+        msg['Subject'] = subject
+        
+        if cc_email:
+            msg['Cc'] = cc_email
+        if bcc_email:
+            msg['Bcc'] = bcc_email
+
+        # Add plain text body
+        text_part = MIMEText(body, 'plain')
+        msg.attach(text_part)
+
+        # Add HTML body if provided
+        if html_body:
+            html_part = MIMEText(html_body, 'html')
+            msg.attach(html_part)
+
+        # Add attachments if provided
+        if attachment_paths:
+            for file_path in attachment_paths:
+                if os.path.isfile(file_path):
+                    with open(file_path, "rb") as attachment:
+                        part = MIMEBase('application', 'octet-stream')
+                        part.set_payload(attachment.read())
+                    
+                    encoders.encode_base64(part)
+                    part.add_header(
+                        'Content-Disposition',
+                        f'attachment; filename= {os.path.basename(file_path)}'
+                    )
+                    msg.attach(part)
+                else:
+                    return f"Attachment file not found: {file_path}"
+
+        # Prepare recipient list
+        recipients = [email.strip() for email in to_email.split(',')]
+        if cc_email:
+            recipients.extend([email.strip() for email in cc_email.split(',')])
+        if bcc_email:
+            recipients.extend([email.strip() for email in bcc_email.split(',')])
+
+        # Send email
+        server.send_message(msg, to_addrs=recipients)
+        server.quit()
+
+        return f"Email sent successfully to {to_email}"
+
+    except Exception as e:
+        return f"Error sending email: {str(e)}"
 
 @mcp.tool()
 def search_emails(

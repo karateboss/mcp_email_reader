@@ -120,7 +120,7 @@ def send_email(
     cc_email: str = None,
     bcc_email: str = None,
     attachment_paths: list = None
-) -> str:
+) -> dict:
     """
     Sends an email with optional HTML content and attachments.
 
@@ -131,49 +131,45 @@ def send_email(
     :param cc_email: Optional CC recipients (comma-separated).
     :param bcc_email: Optional BCC recipients (comma-separated).
     :param attachment_paths: Optional list of file paths to attach.
-    :return: Success message or error description.
+    :return: Dictionary with 'message' key (success or error description).
     """
     try:
         server = connect_to_smtp()
         if isinstance(server, str):
-            return server
+            return {"message": server}
 
         # Create message
         msg = MIMEMultipart('alternative')
         msg['From'] = EMAIL_ACCOUNT
         msg['To'] = to_email
         msg['Subject'] = subject
-        
+
         if cc_email:
             msg['Cc'] = cc_email
-        if bcc_email:
-            msg['Bcc'] = bcc_email
 
         # Add plain text body
-        text_part = MIMEText(body, 'plain')
-        msg.attach(text_part)
+        msg.attach(MIMEText(body, 'plain'))
 
         # Add HTML body if provided
         if html_body:
-            html_part = MIMEText(html_body, 'html')
-            msg.attach(html_part)
+            msg.attach(MIMEText(html_body, 'html'))
 
         # Add attachments if provided
-        if attachment_paths:
-            for file_path in attachment_paths:
-                if os.path.isfile(file_path):
-                    with open(file_path, "rb") as attachment:
-                        part = MIMEBase('application', 'octet-stream')
-                        part.set_payload(attachment.read())
-                    
-                    encoders.encode_base64(part)
-                    part.add_header(
-                        'Content-Disposition',
-                        f'attachment; filename= {os.path.basename(file_path)}'
-                    )
-                    msg.attach(part)
-                else:
-                    return f"Attachment file not found: {file_path}"
+        if attachment_paths is None:
+            attachment_paths = []
+        for file_path in attachment_paths:
+            if os.path.isfile(file_path):
+                with open(file_path, "rb") as attachment:
+                    part = MIMEBase('application', 'octet-stream')
+                    part.set_payload(attachment.read())
+                encoders.encode_base64(part)
+                part.add_header(
+                    'Content-Disposition',
+                    f'attachment; filename="{os.path.basename(file_path)}"'
+                )
+                msg.attach(part)
+            else:
+                return {"message": f"Attachment file not found: {file_path}"}
 
         # Prepare recipient list
         recipients = [email.strip() for email in to_email.split(',')]
@@ -186,11 +182,11 @@ def send_email(
         server.send_message(msg, to_addrs=recipients)
         server.quit()
 
-        return f"Email sent successfully to {to_email}"
+        return {"message": f"Email sent successfully to {to_email}"}
 
     except Exception as e:
-        return f"Error sending email: {str(e)}"
-
+        return {"message": f"Error sending email: {str(e)}"}
+ 
 @mcp.tool()
 def search_emails(
     search_string: str,

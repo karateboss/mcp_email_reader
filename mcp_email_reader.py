@@ -186,7 +186,7 @@ def send_email(
 
     except Exception as e:
         return {"message": f"Error sending email: {str(e)}"}
- 
+
 @mcp.tool()
 def search_emails(
     search_string: str,
@@ -201,7 +201,6 @@ def search_emails(
 ) -> list:
     """
     Searches emails with keyword, date range, sender, and attachment filtering.
-
     :param search_string: Keyword to search in the email.
     :param folder: IMAP folder to search in.
     :param limit: Max number of results.
@@ -214,58 +213,60 @@ def search_emails(
     :return: List of matching email summaries.
     """
     try:
+        # Validate that at least one search criterion is provided
+        if not any([search_string, sender_filter, since_date, before_date, has_attachment]):
+            return []
+        
         server = connect_to_email()
         if isinstance(server, str):
-            return [server]
-
+            return []
+        
         server.select_folder(folder)
-
+        
         # Build IMAP search criteria
         search_criteria = []
-
         if sender_filter:
             search_criteria.extend([b'FROM', sender_filter.encode()])
-
         if search_string:
             search_criteria.extend([b'TEXT', search_string.encode()])
-
         if since_date:
             try:
                 since_dt = datetime.strptime(since_date, "%Y-%m-%d").date()
                 search_criteria.extend([b'SINCE', since_dt.strftime("%d-%b-%Y").encode()])
             except ValueError:
-                return [f"Invalid format for since_date. Use YYYY-MM-DD."]
-
+                return []
         if before_date:
             try:
                 before_dt = datetime.strptime(before_date, "%Y-%m-%d").date()
                 search_criteria.extend([b'BEFORE', before_dt.strftime("%d-%b-%Y").encode()])
             except ValueError:
-                return [f"Invalid format for before_date. Use YYYY-MM-DD."]
-
+                return []
+        
+        # If no search criteria built, return empty list
+        if not search_criteria:
+            search_criteria = [b'ALL']  # Or return [] if you prefer no results
+        
         # Search emails
         messages = server.search(search_criteria)
         messages = sorted(messages, reverse=not sort_ascending)
-
         email_list = []
+        
         for msg_id in messages:
             if len(email_list) >= limit:
                 break
-
             raw_msg = server.fetch(msg_id, ["RFC822"])[msg_id][b"RFC822"]
             msg = email.message_from_bytes(raw_msg)
-
             attachments = get_attachment_names(msg)
-
+            
             # Skip if filtering by attachments and none are found
             if has_attachment and not attachments:
                 continue
-
+            
             subject = decode_mime_words(msg.get("Subject", "(No Subject)"))
             sender = msg.get("From", "Unknown Sender")
             date = msg.get("Date", "Unknown Date")
             bodies = extract_email_bodies(msg)
-
+            
             email_data = {
                 "subject": subject,
                 "sender": sender,
@@ -273,16 +274,16 @@ def search_emails(
                 "body": bodies["text"][:500],
                 "attachments": attachments or []
             }
-
+            
             if include_html:
                 email_data["body_html"] = bodies["html"]
-
+            
             email_list.append(email_data)
-
-        return email_list if email_list else ["No emails found."]
-
+        
+        return email_list
+        
     except Exception as e:
-        return [f"Error searching emails: {str(e)}"]
+        return []  # Return empty list instead of error string
 
 @mcp.tool()
 def download_attachment(

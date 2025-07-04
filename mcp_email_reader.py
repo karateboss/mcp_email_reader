@@ -263,7 +263,7 @@ def search_emails(
                 "subject": subject,
                 "sender": sender,
                 "date": date,
-                "body": bodies["text"][:500],
+                "body": bodies["text"][:1000],
                 "attachments": attachments or []
             }
 

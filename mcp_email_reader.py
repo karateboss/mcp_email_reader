@@ -198,75 +198,67 @@ def search_emails(
     include_html: bool = False,
     sender_filter: str = None,
     has_attachment: bool = False
-) -> list:
+) -> dict:
     """
     Searches emails with keyword, date range, sender, and attachment filtering.
-    :param search_string: Keyword to search in the email.
-    :param folder: IMAP folder to search in.
-    :param limit: Max number of results.
-    :param since_date: Only include emails since this date (YYYY-MM-DD).
-    :param before_date: Only include emails before this date (YYYY-MM-DD).
-    :param sort_ascending: If True, return oldest emails first.
-    :param include_html: If True, include full HTML content.
-    :param sender_filter: Filter by sender email address.
-    :param has_attachment: If True, return only emails with attachments.
-    :return: List of matching email summaries.
+
+    :return: Dict with 'emails' (list of summaries) or 'error' (string).
     """
     try:
-        # Validate that at least one search criterion is provided
-        if not any([search_string, sender_filter, since_date, before_date, has_attachment]):
-            return []
-        
         server = connect_to_email()
         if isinstance(server, str):
-            return []
-        
+            return {"error": server}
+
         server.select_folder(folder)
-        
         # Build IMAP search criteria
         search_criteria = []
+
         if sender_filter:
             search_criteria.extend([b'FROM', sender_filter.encode()])
+
         if search_string:
             search_criteria.extend([b'TEXT', search_string.encode()])
+
         if since_date:
             try:
                 since_dt = datetime.strptime(since_date, "%Y-%m-%d").date()
                 search_criteria.extend([b'SINCE', since_dt.strftime("%d-%b-%Y").encode()])
             except ValueError:
-                return []
+                return {"error": "Invalid format for since_date. Use YYYY-MM-DD."}
+
         if before_date:
             try:
                 before_dt = datetime.strptime(before_date, "%Y-%m-%d").date()
                 search_criteria.extend([b'BEFORE', before_dt.strftime("%d-%b-%Y").encode()])
             except ValueError:
-                return []
-        
-        # If no search criteria built, return empty list
+                return {"error": "Invalid format for before_date. Use YYYY-MM-DD."}
+
+       # If no criteria specified, return a clear error
         if not search_criteria:
-            search_criteria = [b'ALL']  # Or return [] if you prefer no results
-        
+            return {"error": "No search criteria specified."}
+
         # Search emails
         messages = server.search(search_criteria)
         messages = sorted(messages, reverse=not sort_ascending)
+
         email_list = []
-        
         for msg_id in messages:
             if len(email_list) >= limit:
                 break
+
             raw_msg = server.fetch(msg_id, ["RFC822"])[msg_id][b"RFC822"]
             msg = email.message_from_bytes(raw_msg)
+
             attachments = get_attachment_names(msg)
-            
             # Skip if filtering by attachments and none are found
             if has_attachment and not attachments:
                 continue
-            
+
             subject = decode_mime_words(msg.get("Subject", "(No Subject)"))
             sender = msg.get("From", "Unknown Sender")
             date = msg.get("Date", "Unknown Date")
             bodies = extract_email_bodies(msg)
-            
+
             email_data = {
                 "subject": subject,
                 "sender": sender,
@@ -274,16 +266,18 @@ def search_emails(
                 "body": bodies["text"][:500],
                 "attachments": attachments or []
             }
-            
+
             if include_html:
                 email_data["body_html"] = bodies["html"]
-            
+
             email_list.append(email_data)
-        
-        return email_list
-        
+
+        if not email_list:
+            return {"emails": [], "message": "No emails found."}
+        return {"emails": email_list}
+
     except Exception as e:
-        return []  # Return empty list instead of error string
+        return {"error": f"Error searching emails: {str(e)}"}
 
 @mcp.tool()
 def download_attachment(
